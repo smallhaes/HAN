@@ -2,13 +2,14 @@ import time
 import numpy as np
 import tensorflow as tf
 
-from models import GAT, HeteGAT, HeteGAT_multi, HeteGAT_multi_const_1, HeteGAT_multi_const_2
+from models.gat import GAT, HeteGAT, HeteGAT_multi
 from utils import process
 
 # 禁用gpu
 import os
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -54,8 +55,9 @@ def sample_mask(idx, l):
     return np.array(mask, dtype=np.bool)
 
 
-def load_data_dblp(path='/home/jhy/allGAT/acm_hetesim/ACM3025.mat'):
+def load_data_dblp(path='/home/haes/LAB/HGAT/data/acm/ACM3025.mat'):
     data = sio.loadmat(path)
+    print(data.keys())
     truelabels, truefeatures = data['label'], data['feature'].astype(float)
     N = truefeatures.shape[0]
     rownetworks = [data['PAP'] - np.eye(N), data['PLP'] - np.eye(N)]  # , data['PTP'] - np.eye(N)]
@@ -170,7 +172,7 @@ with tf.Graph().as_default():
 
         for epoch in range(nb_epochs):
             tr_step = 0
-           
+
             tr_size = fea_list[0].shape[0]
             # ================   training    ============
             while tr_step * batch_size < tr_size:
@@ -207,7 +209,7 @@ with tf.Graph().as_default():
                        is_train: False,
                        attn_drop: 0.0,
                        ffd_drop: 0.0}
-          
+
                 fd = fd1
                 fd.update(fd2)
                 fd.update(fd3)
@@ -224,9 +226,10 @@ with tf.Graph().as_default():
 
             if val_acc_avg / vl_step >= vacc_mx or val_loss_avg / vl_step <= vlss_mn:
                 if val_acc_avg / vl_step >= vacc_mx and val_loss_avg / vl_step <= vlss_mn:
+                # if False:
                     vacc_early_model = val_acc_avg / vl_step
                     vlss_early_model = val_loss_avg / vl_step
-                    saver.save(sess, checkpt_file)
+                    # saver.save(sess, checkpt_file)
                 vacc_mx = np.max((val_acc_avg / vl_step, vacc_mx))
                 vlss_mn = np.min((val_loss_avg / vl_step, vlss_mn))
                 curr_step = 0
@@ -244,8 +247,8 @@ with tf.Graph().as_default():
             val_loss_avg = 0
             val_acc_avg = 0
 
-        saver.restore(sess, checkpt_file)
-        print('load model from : {}'.format(checkpt_file))
+        # saver.restore(sess, checkpt_file)
+        # print('load model from : {}'.format(checkpt_file))
         ts_size = fea_list[0].shape[0]
         ts_step = 0
         ts_loss = 0.0
@@ -259,11 +262,11 @@ with tf.Graph().as_default():
                    for i, d in zip(bias_in_list, biases_list)}
             fd3 = {lbl_in: y_test[ts_step * batch_size:(ts_step + 1) * batch_size],
                    msk_in: test_mask[ts_step * batch_size:(ts_step + 1) * batch_size],
-            
+
                    is_train: False,
                    attn_drop: 0.0,
                    ffd_drop: 0.0}
-        
+
             fd = fd1
             fd.update(fd2)
             fd.update(fd3)
@@ -278,16 +281,16 @@ with tf.Graph().as_default():
 
         print('start knn, kmean.....')
         xx = np.expand_dims(jhy_final_embedding, axis=0)[test_mask]
-  
+
         from numpy import linalg as LA
 
         # xx = xx / LA.norm(xx, axis=1)
         yy = y_test[test_mask]
 
         print('xx: {}, yy: {}'.format(xx.shape, yy.shape))
-        from jhyexps import my_KNN, my_Kmeans, my_TSNE, my_Linear
-
-        my_KNN(xx, yy)
-        my_Kmeans(xx, yy)
+        # from jhyexps import my_KNN, my_Kmeans, my_TSNE, my_Linear
+        #
+        # my_KNN(xx, yy)
+        # my_Kmeans(xx, yy)
 
         sess.close()

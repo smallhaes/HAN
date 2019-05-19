@@ -130,6 +130,14 @@ def sp_attn_head(seq, out_sz, adj_mat, activation, nb_nodes, in_drop=0.0, coef_d
 #                                                      time_major=False,
 #                                                      return_alphas=True)
 def SimpleAttLayer(inputs, attention_size, time_major=False, return_alphas=False):
+    '''
+
+    :param inputs:              multi_embed: Tensor, (3025,2,64)
+    :param attention_size:      mp_att_size: 128
+    :param time_major:          False
+    :param return_alphas:       True
+    :return:
+    '''
 
     if isinstance(inputs, tuple):
         # In case of Bi-RNN, concatenate the forward and the backward RNN outputs.
@@ -138,10 +146,15 @@ def SimpleAttLayer(inputs, attention_size, time_major=False, return_alphas=False
     if time_major:
         # (T,B,D) => (B,T,D)
         inputs = tf.array_ops.transpose(inputs, [1, 0, 2])
-
+    # hidden_size: 64
     hidden_size = inputs.shape[2].value  # D value - hidden size of the RNN layer
 
     # Trainable parameters
+    '''
+    w_omega: (64,128)
+    b_omega: (128,)
+    u_omega: (128,)
+    '''
     w_omega = tf.Variable(tf.random_normal([hidden_size, attention_size], stddev=0.1))
     b_omega = tf.Variable(tf.random_normal([attention_size], stddev=0.1))
     u_omega = tf.Variable(tf.random_normal([attention_size], stddev=0.1))
@@ -149,13 +162,21 @@ def SimpleAttLayer(inputs, attention_size, time_major=False, return_alphas=False
     with tf.name_scope('v'):
         # Applying fully connected layer with non-linear activation to each of the B*T timestamps;
         #  the shape of `v` is (B,T,D)*(D,A)=(B,T,A), where A=attention_size
+        # inputs: (3025,2,64)
+        # w_omega: (64,128)
+        # v: Tensor, (3025,2,128)
         v = tf.tanh(tf.tensordot(inputs, w_omega, axes=1) + b_omega)
 
     # For each of the timestamps its vector of size A from `v` is reduced with `u` vector
+    # v: (3025,2,128)
+    # u_omega: (128,)
+    # vu: Tensor,(3025,2)
     vu = tf.tensordot(v, u_omega, axes=1, name='vu')  # (B,T) shape
+    # alphas: Tensor,(3025,2)
     alphas = tf.nn.softmax(vu, name='alphas')         # (B,T) shape
 
     # Output of (Bi-)RNN is reduced with attention vector; the result has (B,D) shape
+    # output: Tensor, (3025,64)
     output = tf.reduce_sum(inputs * tf.expand_dims(alphas, -1), 1)
 
     if not return_alphas:
